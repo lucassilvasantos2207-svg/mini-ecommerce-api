@@ -1,0 +1,269 @@
+X<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Painel da Loja</title>
+<style>
+  :root {
+    --tinta: #1f2a37;
+    --papel: #f5f6f3;
+    --linha: #d5d9d2;
+    --destaque: #0f766e;
+    --destaque-escuro: #0b5a54;
+    --erro: #b91c1c;
+    --suave: #5b6670;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Segoe UI", system-ui, sans-serif;
+    color: var(--tinta);
+    background: var(--papel);
+    line-height: 1.5;
+  }
+  header { padding: 28px 24px 8px; max-width: 1100px; margin: 0 auto; }
+  h1 { margin: 0; font-size: 26px; }
+  header p { margin: 4px 0 0; color: var(--suave); }
+  main { max-width: 1100px; margin: 0 auto; padding: 8px 24px 60px; }
+  #aviso { min-height: 24px; margin: 12px 0; font-weight: 600; }
+  #aviso.ok { color: var(--destaque); }
+  #aviso.erro { color: var(--erro); }
+  section { padding: 22px 0; border-top: 2px solid var(--tinta); }
+  h2 { margin: 0 0 14px; font-size: 19px; }
+  .duas { display: grid; grid-template-columns: 320px 1fr; gap: 32px; }
+  @media (max-width: 800px) { .duas { grid-template-columns: 1fr; gap: 20px; } }
+  form { display: grid; gap: 10px; align-content: start; }
+  label { display: grid; gap: 4px; font-size: 14px; color: var(--suave); }
+  input, select {
+    padding: 9px 10px; font: inherit; color: var(--tinta);
+    border: 1px solid var(--linha); border-radius: 4px; background: white;
+  }
+  button {
+    padding: 10px 14px; font: inherit; font-weight: 600; cursor: pointer;
+    color: white; background: var(--destaque); border: none; border-radius: 4px;
+  }
+  button:hover { background: var(--destaque-escuro); }
+  button.secundario { background: white; color: var(--tinta); border: 1px solid var(--tinta); }
+  button.secundario:hover { background: #eceee9; }
+  button.link { background: none; color: var(--erro); padding: 0 4px; font-weight: 400; }
+  input:focus-visible, select:focus-visible, button:focus-visible { outline: 3px solid #5eead4; outline-offset: 1px; }
+  .tabela { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 15px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--linha); vertical-align: top; }
+  th { font-weight: 600; color: var(--suave); }
+  td.num, th.num { text-align: right; white-space: nowrap; }
+  .vazio { color: var(--suave); padding: 10px 0; }
+  .carrinho { list-style: none; padding: 0; margin: 4px 0; }
+  .carrinho li { display: flex; justify-content: space-between; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--linha); }
+  .total { font-weight: 700; margin: 8px 0 4px; }
+  .baixo { color: var(--erro); font-weight: 600; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Painel da Loja</h1>
+  <p>Cadastre produtos e clientes e registre pedidos com baixa automática de estoque.</p>
+</header>
+
+<main>
+  <div id="aviso" role="status"></div>
+
+  <section>
+    <h2>Produtos</h2>
+    <div class="duas">
+      <form id="form-produto">
+        <label>Nome <input id="p-nome" required></label>
+        <label>Preço (R$) <input id="p-preco" type="number" step="0.01" min="0.01" required></label>
+        <label>Estoque <input id="p-estoque" type="number" min="0" required></label>
+        <button type="submit">Cadastrar produto</button>
+      </form>
+      <div class="tabela" id="lista-produtos"></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Clientes</h2>
+    <div class="duas">
+      <form id="form-cliente">
+        <label>Nome <input id="c-nome" required></label>
+        <label>E-mail <input id="c-email" type="email" required></label>
+        <button type="submit">Cadastrar cliente</button>
+      </form>
+      <div class="tabela" id="lista-clientes"></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Novo pedido</h2>
+    <div class="duas">
+      <form id="form-pedido">
+        <label>Cliente <select id="o-cliente" required></select></label>
+        <label>Produto <select id="o-produto"></select></label>
+        <label>Quantidade <input id="o-qtd" type="number" min="1" value="1"></label>
+        <button type="button" class="secundario" id="add-item">Adicionar ao pedido</button>
+        <ul class="carrinho" id="carrinho"></ul>
+        <div class="total" id="total-carrinho"></div>
+        <button type="submit">Finalizar pedido</button>
+      </form>
+      <div>
+        <h2>Pedidos feitos</h2>
+        <div class="tabela" id="lista-pedidos"></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+  const $ = id => document.getElementById(id);
+  const brl = n => Number(n).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  let produtos = [], clientes = [], pedidos = [], carrinho = [];
+
+  function aviso(texto, erro = false) {
+    const el = $('aviso');
+    el.textContent = texto;
+    el.className = erro ? 'erro' : 'ok';
+  }
+
+  async function api(url, opcoes = {}) {
+    const resp = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...opcoes });
+    if (!resp.ok) {
+      let msg = '';
+      try { msg = (await resp.json()).message; } catch (e) {}
+      const padrao = {
+        400: 'Confira os dados informados.',
+        404: 'Item não encontrado.',
+        409: 'Conflito: estoque insuficiente ou e-mail já cadastrado.'
+      }[resp.status] || 'Erro no servidor. Veja o terminal da API.';
+      throw new Error(msg || padrao);
+    }
+    return resp.status === 204 ? null : resp.json();
+  }
+
+  async function carregar() {
+    try {
+      [produtos, clientes, pedidos] = await Promise.all([
+        api('/produtos'), api('/clientes'), api('/pedidos')
+      ]);
+      desenhar();
+    } catch (e) {
+      aviso('Não foi possível falar com a API. Confira se ela está rodando em localhost:8080.', true);
+    }
+  }
+
+  function tabela(colunas, linhas, vazio) {
+    if (!linhas.length) return `<p class="vazio">${vazio}</p>`;
+    const cab = colunas.map(c => `<th class="${c.num ? 'num' : ''}">${c.nome}</th>`).join('');
+    return `<table><thead><tr>${cab}</tr></thead><tbody>${linhas.join('')}</tbody></table>`;
+  }
+
+  function desenhar() {
+    $('lista-produtos').innerHTML = tabela(
+      [{ nome: 'Produto' }, { nome: 'Preço', num: true }, { nome: 'Estoque', num: true }],
+      produtos.map(p => `<tr><td>${esc(p.nome)}</td><td class="num">${brl(p.preco)}</td>
+        <td class="num ${p.estoque === 0 ? 'baixo' : ''}">${p.estoque}</td></tr>`),
+      'Nenhum produto cadastrado. Use o formulário ao lado.'
+    );
+
+    $('lista-clientes').innerHTML = tabela(
+      [{ nome: 'Nome' }, { nome: 'E-mail' }],
+      clientes.map(c => `<tr><td>${esc(c.nome)}</td><td>${esc(c.email)}</td></tr>`),
+      'Nenhum cliente cadastrado. Use o formulário ao lado.'
+    );
+
+    $('lista-pedidos').innerHTML = tabela(
+      [{ nome: 'Pedido' }, { nome: 'Cliente' }, { nome: 'Itens' }, { nome: 'Total', num: true }],
+      [...pedidos].reverse().map(p => `<tr>
+        <td>#${p.id}<br><small>${new Date(p.data).toLocaleString('pt-BR')}</small></td>
+        <td>${esc(p.cliente.nome)}</td>
+        <td>${p.itens.map(i => `${i.quantidade} × ${esc(i.produto.nome)}`).join('<br>')}</td>
+        <td class="num">${brl(p.total)}</td></tr>`),
+      'Nenhum pedido feito ainda.'
+    );
+
+    const guardadoCliente = $('o-cliente').value;
+    const guardadoProduto = $('o-produto').value;
+    $('o-cliente').innerHTML = clientes.length
+      ? clientes.map(c => `<option value="${c.id}">${esc(c.nome)}</option>`).join('')
+      : '<option value="">Cadastre um cliente primeiro</option>';
+    $('o-produto').innerHTML = produtos.length
+      ? produtos.map(p => `<option value="${p.id}">${esc(p.nome)} (estoque ${p.estoque})</option>`).join('')
+      : '<option value="">Cadastre um produto primeiro</option>';
+    if (guardadoCliente) $('o-cliente').value = guardadoCliente;
+    if (guardadoProduto) $('o-produto').value = guardadoProduto;
+
+    desenharCarrinho();
+  }
+
+  function desenharCarrinho() {
+    $('carrinho').innerHTML = carrinho.map((item, i) => `<li>
+      <span>${item.quantidade} × ${esc(item.nome)} — ${brl(item.preco * item.quantidade)}</span>
+      <button type="button" class="link" data-remover="${i}">Remover</button></li>`).join('');
+    const total = carrinho.reduce((soma, i) => soma + i.preco * i.quantidade, 0);
+    $('total-carrinho').textContent = carrinho.length ? `Total: ${brl(total)}` : 'Nenhum item no pedido ainda.';
+  }
+
+  $('carrinho').addEventListener('click', e => {
+    const i = e.target.dataset.remover;
+    if (i !== undefined) { carrinho.splice(Number(i), 1); desenharCarrinho(); }
+  });
+
+  $('add-item').addEventListener('click', () => {
+    const produto = produtos.find(p => String(p.id) === $('o-produto').value);
+    const quantidade = Number($('o-qtd').value);
+    if (!produto || quantidade < 1) { aviso('Escolha um produto e uma quantidade de 1 ou mais.', true); return; }
+    const existente = carrinho.find(i => i.produtoId === produto.id);
+    if (existente) existente.quantidade += quantidade;
+    else carrinho.push({ produtoId: produto.id, nome: produto.nome, preco: produto.preco, quantidade });
+    aviso('');
+    desenharCarrinho();
+  });
+
+  $('form-produto').addEventListener('submit', async e => {
+    e.preventDefault();
+    try {
+      const novo = await api('/produtos', { method: 'POST', body: JSON.stringify({
+        nome: $('p-nome').value.trim(),
+        preco: Number($('p-preco').value),
+        estoque: Number($('p-estoque').value)
+      }) });
+      e.target.reset();
+      aviso(`Produto "${novo.nome}" cadastrado.`);
+      carregar();
+    } catch (err) { aviso(err.message, true); }
+  });
+
+  $('form-cliente').addEventListener('submit', async e => {
+    e.preventDefault();
+    try {
+      const novo = await api('/clientes', { method: 'POST', body: JSON.stringify({
+        nome: $('c-nome').value.trim(),
+        email: $('c-email').value.trim()
+      }) });
+      e.target.reset();
+      aviso(`Cliente "${novo.nome}" cadastrado.`);
+      carregar();
+    } catch (err) { aviso(err.message, true); }
+  });
+
+  $('form-pedido').addEventListener('submit', async e => {
+    e.preventDefault();
+    if (!$('o-cliente').value) { aviso('Cadastre e escolha um cliente.', true); return; }
+    if (!carrinho.length) { aviso('Adicione pelo menos um item ao pedido.', true); return; }
+    try {
+      const pedido = await api('/pedidos', { method: 'POST', body: JSON.stringify({
+        clienteId: Number($('o-cliente').value),
+        itens: carrinho.map(i => ({ produtoId: i.produtoId, quantidade: i.quantidade }))
+      }) });
+      carrinho = [];
+      aviso(`Pedido #${pedido.id} criado. Total: ${brl(pedido.total)}.`);
+      carregar();
+    } catch (err) { aviso(err.message, true); }
+  });
+
+  carregar();
+</script>
+</body>
+</html>
