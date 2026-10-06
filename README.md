@@ -15,8 +15,6 @@ API REST em **Java e Spring Boot** para gerenciar produtos, clientes e pedidos d
 - Validação dos dados de entrada com Bean Validation
 - Painel web para cadastrar produtos e clientes e registrar pedidos
 
-![Pedido recusado por falta de estoque](docs/estoque-insuficiente.png)
-
 ## Tecnologias
 
 - Java 17
