@@ -2,8 +2,6 @@
 
 API REST em **Java e Spring Boot** para gerenciar produtos, clientes e pedidos de uma loja. Ao criar um pedido, a API valida o estoque, desconta as quantidades compradas e calcula o total, tudo dentro de uma transação. O projeto inclui uma página web para usar o sistema pelo navegador.
 
-![Tela do painel da loja](docs/tela-principal.png)
-
 ## Funcionalidades
 
 - CRUD de **produtos** (nome, preço e estoque)
